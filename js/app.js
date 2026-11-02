@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TELEGRAM_URL } from "./config.js";
 
 const api = await import(SUPABASE_URL && SUPABASE_ANON_KEY ? "./backend-supabase.js" : "./backend-local.js");
 
@@ -133,12 +133,16 @@ async function route() {
   }
 }
 
+const TG_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M9.8 15.4 9.6 19c.4 0 .6-.2.8-.4l2-1.9 4.1 3c.8.4 1.3.2 1.5-.7l2.7-12.6c.3-1.1-.4-1.6-1.1-1.3L3.7 10.8c-1.1.4-1.1 1-.2 1.3l4.1 1.3 9.5-6c.4-.3.9-.1.6.2z"/></svg>`;
+const tgLink = (cls = "btn tg") => (TELEGRAM_URL ? `<a class="${cls}" href="${esc(TELEGRAM_URL)}" target="_blank" rel="noopener">${TG_ICON} Telegram</a>` : "");
+
 function renderNav() {
   if (!user || !user.isTeacher) {
-    $nav.innerHTML = user ? `<button class="btn ghost" id="logout">Chiqish</button>` : "";
+    $nav.innerHTML = tgLink() + (user ? `<button class="btn ghost" id="logout">Chiqish</button>` : "");
   } else {
     $nav.innerHTML = `
       <a class="btn primary" href="#/new">+ Qo'shish</a>
+      ${tgLink()}
       ${user.isAdmin ? `<a class="btn ghost" href="#/teachers">Ustozlar</a>` : ""}
       <span class="who" title="${esc(user.email)}">${esc(user.email)}</span>
       <button class="btn ghost" id="logout">Chiqish</button>`;
@@ -155,13 +159,15 @@ function renderNav() {
 function renderLogin() {
   $app.innerHTML = `
     <div class="login card pad">
-      <h1>🎯 Activity Hub</h1>
+      <img class="login-logo" src="img/logo.png" alt="Activity Hub logotipi">
+      <h1>Activity Hub</h1>
       <p class="muted">Ustozlar uchun o'yinlar, faoliyatlar va materiallar markazi.</p>
       <form id="login-form">
         <label>Email<input type="email" name="email" required placeholder="ustoz@maktab.uz" autocomplete="email"></label>
         <button class="btn primary wide">${api.isDemo ? "Kirish (sinov rejimi)" : "Kirish havolasini yuborish"}</button>
       </form>
       <p id="login-msg" class="muted small"></p>
+      ${TELEGRAM_URL ? `<p class="small">Yangiliklar: ${tgLink("tg-inline")}</p>` : ""}
     </div>`;
   document.getElementById("login-form").onsubmit = async (e) => {
     e.preventDefault();
