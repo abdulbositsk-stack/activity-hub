@@ -10,6 +10,8 @@ to'g'ridan-to'g'ri brauzerda tahrirlash mumkin.
 - **Faqat ustozlar**: email orqali kirish; faqat "Ustozlar" ro'yxatidagi emaillar ichkariga kiradi. Admin ro'yxatni boshqaradi.
 - **Qo'shish**: havola (Netlify / Vercel / Google Drive / boshqa sayt), HTML fayl, ZIP (ichida `index.html`), PDF.
 - **Tahrirlash**: HTML/ZIP o'yinlar uchun kod muharriri (fayllar ro'yxati, saqlash, jonli ko'rish, yangi fayl yoki rasm yuklash).
+- **Zaxira**: butun katalogni bitta ZIP'ga eksport qilish va qayta tiklash (sinov rejimidan Supabase'ga ko'chish uchun ham).
+- **Telefon ilovasi**: saytni telefonda "Bosh ekranga qo'shish" mumkin.
 - **ZIP yuklab olish**: tahrirlangan o'yinni ZIP qilib olib, xohlasangiz yana Netlify'ga joylash mumkin.
 
 ## Ishga tushirish

@@ -1,0 +1,14 @@
+{
+  "name": "Activity Hub",
+  "short_name": "Activity Hub",
+  "description": "Ustozlar uchun o'yinlar, faoliyatlar va materiallar markazi",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f7fb",
+  "theme_color": "#1a5fd0",
+  "icons": [
+    { "src": "img/logo.png", "sizes": "256x256", "type": "image/png" },
+    { "src": "img/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

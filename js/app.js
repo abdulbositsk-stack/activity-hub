@@ -126,6 +126,7 @@ async function route() {
     if (page === "edit") return renderForm(await api.getItem(id));
     if (page === "code") return await renderCode(id);
     if (page === "teachers" && user.isAdmin) return await renderTeachers();
+    if (page === "backup") return renderBackup();
     location.hash = "#/";
   } catch (e) {
     console.error(e);
@@ -144,6 +145,7 @@ function renderNav() {
       <a class="btn primary" href="#/new">+ Qo'shish</a>
       ${tgLink()}
       ${user.isAdmin ? `<a class="btn ghost" href="#/teachers">Ustozlar</a>` : ""}
+      <a class="btn ghost" href="#/backup">Zaxira</a>
       <span class="who" title="${esc(user.email)}">${esc(user.email)}</span>
       <button class="btn ghost" id="logout">Chiqish</button>`;
   }
@@ -599,6 +601,62 @@ async function renderTeachers() {
     if (!email || !confirm(`${email} ro'yxatdan olib tashlansinmi?`)) return;
     await api.removeTeacher(email);
     renderTeachers();
+  };
+}
+
+// ---------- zaxira (eksport / import) ----------
+function renderBackup() {
+  $app.innerHTML = `
+    <div class="card pad form-card">
+      <a href="#/" class="muted small">← Katalog</a>
+      <h1>Zaxira nusxa</h1>
+      <p class="muted">Butun katalogni (barcha o'yinlar, fayllar va ma'lumotlar) bitta ZIP faylga saqlab oling yoki ZIP'dan qayta tiklang.
+      ${api.isDemo ? "Sinov rejimida ma'lumotlar faqat shu brauzerda turadi. Supabase ulangach, shu ZIP orqali hammasini ko'chirib o'tkazasiz." : ""}</p>
+      <div class="form-actions"><button class="btn primary" id="export">⬇ Zaxira ZIP yuklab olish</button></div>
+      <label>Zaxiradan tiklash (.zip)<input type="file" id="import" accept=".zip"></label>
+      <p id="bk-status" class="muted small"></p>
+    </div>`;
+  const status = document.getElementById("bk-status");
+  document.getElementById("export").onclick = async (e) => {
+    e.target.disabled = true;
+    try {
+      const items = await api.listItems();
+      const zip = new JSZip();
+      zip.file("items.json", JSON.stringify(items, null, 2));
+      let n = 0;
+      for (const it of items) for (const f of it.files || []) {
+        status.textContent = `Fayllar yig'ilmoqda: ${++n}`;
+        zip.file(`files/${it.id}/${f.path}`, await api.getFile(it.id, f.path));
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `activity-hub-zaxira-${new Date().toISOString().slice(0, 10)}.zip`;
+      a.click();
+      status.textContent = `Tayyor: ${items.length} ta material, ${n} ta fayl.`;
+    } catch (err) { toast("Xatolik: " + err.message, true); }
+    e.target.disabled = false;
+  };
+  document.getElementById("import").onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const zip = await JSZip.loadAsync(file);
+      const items = JSON.parse(await zip.file("items.json").async("string"));
+      const existing = new Set((await api.listItems()).map((i) => i.id));
+      let done = 0;
+      for (const it of items) {
+        status.textContent = `Tiklanmoqda: ${++done}/${items.length} — ${it.title}`;
+        for (const f of it.files || []) {
+          const z = zip.file(`files/${it.id}/${f.path}`);
+          if (z) await api.putFile(it.id, f.path, new Blob([await z.async("uint8array")], { type: mimeOf(f.path) }));
+        }
+        await api.saveItem(it);
+      }
+      const added = items.filter((i) => !existing.has(i.id)).length;
+      status.textContent = `Tayyor: ${items.length} ta material tiklandi (${added} ta yangi).`;
+      toast("Zaxira tiklandi");
+    } catch (err) { toast("Xatolik: zaxira faylini o'qib bo'lmadi (" + err.message + ")", true); }
   };
 }
 
