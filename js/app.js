@@ -667,6 +667,10 @@ try {
   if (api.isDemo) document.getElementById("demo-banner").hidden = false;
   await api.init();
   user = await api.currentUser();
+  // Kirish havolasidan qolgan tokenni manzil satridan tozalash
+  if (/access_token|refresh_token|error_description/.test(location.hash)) {
+    history.replaceState(null, "", location.pathname + location.search + "#/");
+  }
 } catch (e) {
   console.error(e);
   toast("Ulanishda xatolik: " + e.message, true);
