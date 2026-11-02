@@ -184,7 +184,9 @@ function renderLogin() {
         msg.textContent = `${email} manziliga kirish havolasi yuborildi. Pochtangizni oching va havolani bosing.`;
       }
     } catch (err) {
-      msg.textContent = "Xatolik: " + err.message;
+      msg.textContent = /rate limit/i.test(err.message)
+        ? "Juda ko'p urinish bo'ldi. Avval pochtangizni (Spam papkasini ham) tekshiring: kirish havolasi allaqachon kelgan bo'lishi mumkin. Bo'lmasa, 1 soatdan keyin qayta urinib ko'ring."
+        : "Xatolik: " + err.message;
     }
   };
 }
