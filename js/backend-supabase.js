@@ -5,7 +5,7 @@ let sb;
 export const isDemo = false;
 
 export async function init() {
-  const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm");
+  const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/+esm");
   sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   // Magic link orqali qaytganda sessiyani o'qib olish
   await sb.auth.getSession();
@@ -22,7 +22,8 @@ export async function currentUser() {
   const user = data.session?.user;
   if (!user) return null;
   const email = user.email.toLowerCase();
-  const { data: row } = await sb.from("teachers").select("*").eq("email", email).maybeSingle();
+  const { data: row, error } = await sb.from("teachers").select("*").eq("email", email).maybeSingle();
+  if (error && /does not exist|schema cache/i.test(error.message)) throw new Error("Baza hali sozlanmagan: Supabase SQL Editor'da supabase/schema.sql faylini ishga tushiring.");
   return { email, isTeacher: !!row, isAdmin: !!row?.is_admin };
 }
 
