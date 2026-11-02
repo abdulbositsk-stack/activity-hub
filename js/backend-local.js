@@ -50,6 +50,10 @@ export async function signIn(email) {
   return { immediate: true };
 }
 
+export const signInPassword = (email) => signIn(email);
+export const signUp = (email) => signIn(email);
+export async function setPassword() {}
+
 export async function signOut() {
   await tx("meta", "readwrite", (s) => s.delete("user"));
 }

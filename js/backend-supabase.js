@@ -33,6 +33,20 @@ export async function signIn(email) {
   return { immediate: false };
 }
 
+export async function signInPassword(email, password) {
+  check(await sb.auth.signInWithPassword({ email, password }));
+  return { immediate: true };
+}
+
+export async function signUp(email, password) {
+  const data = check(await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } }));
+  return { immediate: !!data.session };
+}
+
+export async function setPassword(password) {
+  check(await sb.auth.updateUser({ password }));
+}
+
 export async function signOut() {
   await sb.auth.signOut();
 }

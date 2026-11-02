@@ -127,6 +127,7 @@ async function route() {
     if (page === "code") return await renderCode(id);
     if (page === "teachers" && user.isAdmin) return await renderTeachers();
     if (page === "backup") return renderBackup();
+    if (page === "account") return renderAccount();
     location.hash = "#/";
   } catch (e) {
     console.error(e);
@@ -146,7 +147,7 @@ function renderNav() {
       ${tgLink()}
       ${user.isAdmin ? `<a class="btn ghost" href="#/teachers">Ustozlar</a>` : ""}
       <a class="btn ghost" href="#/backup">Zaxira</a>
-      <span class="who" title="${esc(user.email)}">${esc(user.email)}</span>
+      <a class="who" href="#/account" title="Parolni o'zgartirish">${esc(user.email)} 🔑</a>
       <button class="btn ghost" id="logout">Chiqish</button>`;
   }
   document.getElementById("logout")?.addEventListener("click", async () => {
@@ -158,6 +159,16 @@ function renderNav() {
 }
 
 // ---------- kirish ----------
+function authError(err) {
+  const m = err.message || "";
+  if (/invalid login credentials/i.test(m)) return "Email yoki parol noto'g'ri. Birinchi marta bo'lsangiz, \"Ro'yxatdan o'tish\" ni bosing.";
+  if (/email not confirmed/i.test(m)) return "Avval pochtangizga kelgan \"Confirm your email address\" xatidagi havolani bosing (Spam papkasini ham tekshiring).";
+  if (/already registered|already been registered/i.test(m)) return "Bu email allaqachon ro'yxatdan o'tgan. Parolingiz bilan \"Kirish\" ni bosing.";
+  if (/rate limit/i.test(m)) return "Pochta xatlari limiti tugadi (soatiga bir nechta). Parolingiz bo'lsa, parol bilan kiring. Bo'lmasa, 1 soatdan keyin urinib ko'ring.";
+  if (/password/i.test(m) && /least|short|weak/i.test(m)) return "Parol juda qisqa: kamida 6 ta belgi bo'lsin.";
+  return "Xatolik: " + m;
+}
+
 function renderLogin() {
   $app.innerHTML = `
     <div class="login card pad">
@@ -165,29 +176,66 @@ function renderLogin() {
       <h1>Activity Hub</h1>
       <p class="muted">Ustozlar uchun o'yinlar, faoliyatlar va materiallar markazi.</p>
       <form id="login-form">
-        <label>Email<input type="email" name="email" required placeholder="ustoz@maktab.uz" autocomplete="email"></label>
-        <button class="btn primary wide">${api.isDemo ? "Kirish (sinov rejimi)" : "Kirish havolasini yuborish"}</button>
+        <label>Email<input id="email" type="email" name="email" required placeholder="ustoz@maktab.uz" autocomplete="email"></label>
+        <label>Parol<input id="password" type="password" name="password" minlength="6" placeholder="kamida 6 ta belgi" autocomplete="current-password"></label>
+        <button class="btn primary wide" data-act="login">Kirish</button>
+        ${api.isDemo ? "" : `<button class="btn wide" type="button" data-act="signup">Ro'yxatdan o'tish (birinchi marta)</button>
+        <button class="btn ghost wide small" type="button" data-act="link">Parolsiz: emailga kirish havolasini yuborish</button>`}
       </form>
       <p id="login-msg" class="muted small"></p>
       ${TELEGRAM_URL ? `<p class="small">Yangiliklar: ${tgLink("tg-inline")}</p>` : ""}
     </div>`;
-  document.getElementById("login-form").onsubmit = async (e) => {
-    e.preventDefault();
-    const email = e.target.email.value.trim().toLowerCase();
-    const msg = document.getElementById("login-msg");
+  const form = document.getElementById("login-form");
+  const msg = document.getElementById("login-msg");
+  const run = async (act) => {
+    const email = form.email.value.trim().toLowerCase();
+    const password = form.password.value;
+    if (!form.email.reportValidity()) return;
+    if (act !== "link" && !api.isDemo && password.length < 6) {
+      msg.textContent = "Parolni kiriting (kamida 6 ta belgi).";
+      return;
+    }
+    form.querySelectorAll("button").forEach((b) => (b.disabled = true));
+    msg.textContent = "Kuting…";
     try {
-      const r = await api.signIn(email);
+      const r = act === "signup" ? await api.signUp(email, password)
+        : act === "link" ? await api.signIn(email)
+        : await api.signInPassword(email, password);
       if (r.immediate) {
         user = await api.currentUser();
-        route();
-      } else {
-        msg.textContent = `${email} manziliga kirish havolasi yuborildi. Pochtangizni oching va havolani bosing.`;
+        return route();
       }
+      msg.textContent = act === "signup"
+        ? `Deyarli tayyor! ${email} pochtasiga "Confirm your email address" xati yuborildi (Spam papkasini ham tekshiring). Undagi havolani bir marta bosing, keyin har doim parol bilan kirasiz.`
+        : `${email} manziliga kirish havolasi yuborildi. Pochtangizni oching va havolani bosing.`;
     } catch (err) {
-      msg.textContent = /rate limit/i.test(err.message)
-        ? "Juda ko'p urinish bo'ldi. Avval pochtangizni (Spam papkasini ham) tekshiring: kirish havolasi allaqachon kelgan bo'lishi mumkin. Bo'lmasa, 1 soatdan keyin qayta urinib ko'ring."
-        : "Xatolik: " + err.message;
+      msg.textContent = authError(err);
     }
+    form.querySelectorAll("button").forEach((b) => (b.disabled = false));
+  };
+  form.onsubmit = (e) => { e.preventDefault(); run("login"); };
+  form.querySelectorAll("button[type=button]").forEach((b) => (b.onclick = () => run(b.dataset.act)));
+}
+
+function renderAccount() {
+  $app.innerHTML = `
+    <div class="card pad form-card">
+      <a href="#/" class="muted small">← Katalog</a>
+      <h1>Parol</h1>
+      <p class="muted">Parol o'rnatsangiz, keyingi safar email xatini kutmasdan email va parol bilan kirasiz.</p>
+      <form id="pw-form">
+        <label>Yangi parol<input id="new-password" type="password" name="password" required minlength="6" autocomplete="new-password" placeholder="kamida 6 ta belgi"></label>
+        <div class="form-actions"><button class="btn primary">Saqlash</button><span id="pw-msg" class="muted small"></span></div>
+      </form>
+    </div>`;
+  document.getElementById("pw-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const out = document.getElementById("pw-msg");
+    try {
+      await api.setPassword(e.target.password.value);
+      out.textContent = "Parol saqlandi. Endi email va parol bilan kira olasiz.";
+      e.target.reset();
+    } catch (err) { out.textContent = authError(err); }
   };
 }
 
