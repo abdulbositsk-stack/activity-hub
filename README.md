@@ -10,6 +10,7 @@ to'g'ridan-to'g'ri brauzerda tahrirlash mumkin.
 - **Faqat ustozlar**: email orqali kirish; faqat "Ustozlar" ro'yxatidagi emaillar ichkariga kiradi. Admin ro'yxatni boshqaradi.
 - **Qo'shish**: havola (Netlify / Vercel / Google Drive / boshqa sayt), HTML fayl, ZIP (ichida `index.html`), PDF.
 - **Tahrirlash**: HTML/ZIP o'yinlar uchun kod muharriri (fayllar ro'yxati, saqlash, jonli ko'rish, yangi fayl yoki rasm yuklash).
+- **Muqova rasmlari**: har bir kartochkada o'yinni tanib olish uchun rasm. O'zingiz rasm tanlaysiz (yoki Ctrl+V bilan qo'yasiz), bo'lmasa avtomatik topiladi: havolada sayt ko'rinishi, Google Drive'da fayl rasmi, ZIP'da ichidagi rasm, PDF'da birinchi sahifa. Hech narsa topilmasa, nomi va mavzusiga mos belgili muqova yasaladi.
 - **Zaxira**: butun katalogni bitta ZIP'ga eksport qilish va qayta tiklash (sinov rejimidan Supabase'ga ko'chish uchun ham).
 - **Telefon ilovasi**: saytni telefonda "Bosh ekranga qo'shish" mumkin.
 - **ZIP yuklab olish**: tahrirlangan o'yinni ZIP qilib olib, xohlasangiz yana Netlify'ga joylash mumkin.
@@ -32,6 +33,12 @@ Mahalliy ishga tushirish: `npx serve .` yoki `python3 -m http.server`.
 ### 3. Joylash
 - **Netlify**: "Add new site → Import from GitHub" → shu repo. Build buyrug'i kerak emas.
 - **Vercel**: "New Project" → shu repo → Framework: *Other*.
+
+### Muqova rasmlari uchun (eski bazalar)
+Agar bazani muqova rasmlari qo'shilishidan oldin sozlagan bo'lsangiz, Supabase → **SQL Editor** da bir marta shuni ishga tushiring:
+```sql
+alter table public.items add column if not exists thumbnail text;
+```
 
 ## Netlify/Vercel'dagi o'yinni tahrirlanadigan qilish
 Havola sifatida qo'shilgan o'yinni faqat ko'rish mumkin. Kodini tahrirlash uchun:

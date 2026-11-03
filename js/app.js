@@ -1,4 +1,5 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY, TELEGRAM_URL } from "./config.js";
+import { imageToThumb, autoThumb, coverHtml, thumbSrc } from "./thumbs.js";
 
 const api = await import(SUPABASE_URL && SUPABASE_ANON_KEY ? "./backend-supabase.js" : "./backend-local.js");
 
@@ -34,6 +35,17 @@ const mimeOf = (p) => (MIME[ext(p)] || "application/octet-stream") + (TEXT_EXT.i
 const isText = (p) => TEXT_EXT.includes(ext(p));
 const cat = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
 const fmtDate = (s) => (s ? new Date(s).toLocaleDateString("uz-UZ", { year: "numeric", month: "short", day: "numeric" }) : "");
+
+// Kartochka muqovasi: generatsiya qilingan muqova ustida rasm (rasm ochilmasa olib tashlanadi)
+function thumbHtml(item) {
+  const c = cat(item.category);
+  const src = thumbSrc(item);
+  return `<div class="thumb c-${c.id}">${coverHtml(item, c.icon)}${src ? `<img src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}</div>`;
+}
+// Ochilmagan rasmlarni yashiradi (masalan, Drive fayli yopiq bo'lsa)
+document.addEventListener("error", (e) => {
+  if (e.target.tagName === "IMG" && e.target.parentElement?.classList.contains("thumb")) e.target.remove();
+}, true);
 
 function toast(msg, isError) {
   const t = document.getElementById("toast");
@@ -291,9 +303,8 @@ async function renderCatalog() {
       return;
     }
     grid.innerHTML = list.map((i) => {
-      const c = cat(i.category);
       return `<a class="tile card" href="#/item/${i.id}">
-        <div class="thumb c-${c.id}">${c.icon}</div>
+        ${thumbHtml(i)}
         <div class="tile-body">
           <h3>${esc(i.title)}</h3>
           <p class="muted small clamp">${esc(i.description || "")}</p>
@@ -426,6 +437,22 @@ function renderForm(item) {
         </fieldset>` : item.kind === "link" ? `
         <label>Havola<input name="url" type="url" required value="${esc(item.url)}"></label>` : ""}
 
+        <fieldset class="thumb-field">
+          <legend>Muqova rasmi</legend>
+          <div class="thumb-edit">
+            <div class="tile card thumb-preview" id="thumb-preview"></div>
+            <div>
+              <div class="actions">
+                <label class="btn">🖼 Rasm tanlash<input type="file" id="thumb-file" accept="image/*" hidden></label>
+                <button class="btn" type="button" id="thumb-auto">✨ Avtomatik</button>
+                <button class="btn ghost" type="button" id="thumb-clear">✕ Olib tashlash</button>
+              </div>
+              <p class="muted small" id="thumb-msg">Kartochkada ko'rinadigan rasm. Rasmni nusxalab (skrinshot ham bo'ladi) shu sahifada <b>Ctrl+V</b> bosib qo'yishingiz ham mumkin.
+              Rasm tanlamasangiz, avtomatik topiladi: havolada sayt ko'rinishi, ZIP'da ichidagi rasm, PDF'da birinchi sahifa.</p>
+            </div>
+          </div>
+        </fieldset>
+
         <div class="form-actions">
           <button class="btn primary" id="save">Saqlash</button>
           <span id="status" class="muted small"></span>
@@ -434,6 +461,76 @@ function renderForm(item) {
     </div>`;
 
   const form = document.getElementById("f");
+
+  // --- muqova rasmi ---
+  // thumb: undefined = hali tanlanmagan (saqlashda avtomatik topiladi),
+  // "" = avtomatik (havolada sayt ko'rinishi), "none" = rasmsiz, boshqasi = rasm manzili
+  let thumb = isNew ? undefined : item.thumbnail || "";
+  let thumbIsAuto = false;
+  const tmsg = document.getElementById("thumb-msg");
+  const srcType = () => (isNew ? form.src.value : item.kind);
+  const draft = () => {
+    const fd = new FormData(form);
+    const s = srcType();
+    const kind = s === "link" || s === "pdf" ? s : "bundle";
+    return { ...item, kind, title: fd.get("title"), category: fd.get("category"), subject: fd.get("subject"), tags: fd.get("tags").split(","), url: fd.get("url")?.trim() ?? item.url };
+  };
+  const drawThumb = () => {
+    document.getElementById("thumb-preview").innerHTML = thumbHtml({ ...draft(), thumbnail: thumb || "" });
+  };
+  const setThumb = (v, note, auto = false) => {
+    thumb = v;
+    thumbIsAuto = auto;
+    drawThumb();
+    if (note) tmsg.textContent = note;
+  };
+  const useImage = async (file) => {
+    try { setThumb(await imageToThumb(file), "Rasm qo'yildi. Saqlashni unutmang."); }
+    catch (err) { toast(err.message, true); }
+  };
+  // Tanlangan manbadan avtomatik muqova
+  const findAuto = async () => {
+    const s = srcType();
+    if (s === "link") return "";
+    if (!isNew) return autoThumb({ kind: item.kind, files: item.files || [], getBlob: (p) => api.getFile(item.id, p) });
+    const file = form[s].files[0];
+    if (!file) return "none";
+    if (s === "pdf") return (await autoThumb({ kind: "pdf", files: [{ path: file.name, blob: file }] })) || "none";
+    if (s === "zip") return (await autoThumb({ kind: "bundle", files: (await readZip(file)).map((u) => ({ path: u.path, size: u.blob.size, blob: u.blob })) })) || "none";
+    return "none";
+  };
+  const runAuto = async (quiet) => {
+    tmsg.textContent = "Qidirilmoqda…";
+    const v = await findAuto();
+    const note = srcType() === "link"
+      ? "Sayt ko'rinishi avtomatik olinadi (birinchi marta bir necha soniya vaqt olishi mumkin)."
+      : v !== "none" ? "Avtomatik rasm topildi." + (quiet ? "" : " Saqlashni unutmang.")
+      : "Mos rasm topilmadi: nomi va belgisidan muqova yasaldi. Xohlasangiz, o'zingiz rasm tanlang.";
+    setThumb(v, note, true);
+  };
+  document.getElementById("thumb-file").onchange = (e) => e.target.files[0] && useImage(e.target.files[0]);
+  document.getElementById("thumb-clear").onclick = () => setThumb("none", "Rasm olib tashlandi: kartochkada nomi va belgisi ko'rinadi.");
+  document.getElementById("thumb-auto").onclick = async (e) => {
+    e.target.disabled = true;
+    await runAuto(false);
+    e.target.disabled = false;
+  };
+  form.addEventListener("input", (e) => { if (e.target.type !== "file") drawThumb(); });
+  form.addEventListener("change", (e) => {
+    // Manba yoki fayl o'zgarsa va rasmni o'zingiz tanlamagan bo'lsangiz, muqova qayta topiladi
+    if (isNew && (thumb === undefined || thumbIsAuto) && (e.target.name === "src" || ["html", "zip", "pdf"].includes(e.target.name))) {
+      thumb = undefined;
+      if (e.target.type === "file") return runAuto(true);
+    }
+    drawThumb();
+  });
+  document.onpaste = (e) => {
+    if (!document.getElementById("thumb-preview")) return (document.onpaste = null);
+    const file = [...(e.clipboardData?.files || [])].find((f) => f.type.startsWith("image/"));
+    if (file) { e.preventDefault(); useImage(file); }
+  };
+  drawThumb();
+
   if (isNew) {
     form.querySelectorAll("input[name=src]").forEach((r) =>
       r.addEventListener("change", () => {
@@ -490,12 +587,19 @@ function renderForm(item) {
         row.source = detectSource(row.url);
       }
 
+      if (thumb === undefined && row.kind !== "link") {
+        status.textContent = "Muqova rasmi tayyorlanmoqda…";
+        thumb = (await autoThumb({ kind: row.kind, files: uploads.map((u) => ({ path: u.path, size: u.blob.size, blob: u.blob })) })) || "none";
+      }
+      row.thumbnail = thumb || "";
+
       for (let i = 0; i < uploads.length; i++) {
         status.textContent = `Yuklanmoqda ${i + 1}/${uploads.length}…`;
         await api.putFile(row.id, uploads[i].path, uploads[i].blob);
       }
       const saved = await api.saveItem(row);
-      toast("Saqlandi");
+      if (saved.thumbnailMissing) toast("Saqlandi, lekin muqova rasmi saqlanmadi: Supabase'da bitta SQL buyruqni ishga tushirish kerak (README → Muqova rasmlari).", true);
+      else toast("Saqlandi");
       location.hash = `#/item/${saved.id}`;
     } catch (err) {
       console.error(err);

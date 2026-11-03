@@ -62,7 +62,13 @@ export async function getItem(id) {
 export async function saveItem(item) {
   const row = { ...item, updated_at: new Date().toISOString() };
   if (!row.id) row.id = crypto.randomUUID();
-  return check(await sb.from("items").upsert(row).select().single());
+  const res = await sb.from("items").upsert(row).select().single();
+  // Bazada hali "thumbnail" ustuni bo'lmasa, rasmsiz saqlaymiz (README → Muqova rasmlari)
+  if (res.error && /thumbnail/i.test(res.error.message) && "thumbnail" in row) {
+    const { thumbnail, ...rest } = row;
+    return { ...check(await sb.from("items").upsert(rest).select().single()), thumbnailMissing: true };
+  }
+  return check(res);
 }
 
 export async function deleteItem(item) {
