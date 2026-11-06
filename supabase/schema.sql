@@ -23,10 +23,14 @@ create table if not exists public.items (
   url text,
   entry text,
   files jsonb not null default '[]',
+  thumbnail text,
   created_by text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Muqova rasmi ustuni (eski bazalar uchun ham)
+alter table public.items add column if not exists thumbnail text;
 
 -- 3) Yordamchi funksiyalar
 create or replace function public.is_teacher() returns boolean
